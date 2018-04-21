@@ -9,7 +9,18 @@ The candidate state ht is computed similarily to the way of traditional recurren
 ht = tanh(Whxt +rt⊙(Uhht-1) +bh)
 where tanh is a non-linear function, rt is the reset gate and ⊙ denotes element-wise multiplication. When rt is close to zero, then the reset gate forgets the previously computed state. The reset gate rt is updated similarily to the update gate as follows:
 rt = б(Wzxt +Uzht-1 +bz)
-The bidirectional GRU is essentially a combination of two GRUs that one operates in the forward direction and the other operates in the backward direction. In this way, it leads to two hidden states ht and ht at time t, which can be viewed as a summary of the left context and right context respectively. Their concatenation ht = [ht;ht] provides a summary of global context for the input at time t.
+The bidirectional GRU is essentially a combination of two GRUs that one operates in the forward direction and the other operates in the backward direction. In this way, it leads to two hidden states ht and ht at time t, which can be viewed as a summary of the left context and right context respectively. Their concatenation ht = [ht;ht] provides a summary of global context around the input at time t.
 3.2 Context-based Conceptualization 
+Conceptualization map a word into an explicit semantic space composed by concepts in knowledge base. In this section, we firstly describe how to 
+3.2.1 Knowledge Base Concepts Representation
 
-2.3 Convolutional Neural Networks
+3.2.2 Concept Attention
+Suppose a document is expressed as D = {x1,x2,…,xn}, where n is the number of words it contains. In the previous step, for a word xi, we can get its concept vector Ci ={<ci1: vi1>,…,<cij: vij>}. Not all concepts care related to a word given the context. Hence, we employ an attention-based neural network to dynamically extract such concepts that are important or relevant to the given context and aggregate the representations of those concepts to form a context-based concept vector. Specifically,
+uij = tanh(Wvij+b)
+aij = exp ()
+mi = 
+where . In this way, we get a context-based concept vector to represent the external knowledge related to a word given the context. For a word at time t, We combine its global context h with its concept representation called word-concept embedding together and feed them into a convolutional neural network to perform short text classification.
+3.3 Convolutional Neural Networks	
+A matric H = {h1,h2,h3,…,hl} is obtained from ….
+
+
