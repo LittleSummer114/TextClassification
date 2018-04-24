@@ -1,26 +1,129 @@
-In this paper, we propose a context-based conceptualization recurrent convolutional neural network called 2ConRCNN, which combines global context and local context together with external knowledge for short text classification. The architecture of our propose model in shown in Figure 1. It consists of four parts: BGRU Layer, a global context-based attention layer, a convolution layer, and a max pooling layer.
-3.1 Bidirectional GRU Layer
-For the text classification task, it is beneficial to take the left context as well as the right context into consideration since they both are helpful for interpreting the meaning of the current word. In this paper, we utilize bidirectional GRU to combine a word’s the past and future information together to represent its global context. In this way, we can obtain a more precise word meaning. The gated recurrent unit (Bahdanau et al., 2014) (GRU) is a variant of RNNs which takes a sequence of inputs and uses a gating mechanism to compute a hidden state vector based on current input and previous entire history of inputs at each time step. The hidden state at time t can be computed recursively as follows:
-(1) ht=(1-zt)ht-1+ztht
-The hidden state ht at time t is a interpolation between previous state ht-1 and the candidate state ht. The update gate zt decides what information to keep from previous state and what information to add from the current input. It is computed by:
-zt = б(Wzxt +Uzht-1 +bz)
-whereбis a sigmoid function, xt is the input at time t. WZ,UZ are weight matrices and bz is a bias which are learned.
-The candidate state ht is computed similarily to the way of traditional recurrent neural network (RNN) :
-ht = tanh(Whxt +rt⊙(Uhht-1) +bh)
-where tanh is a non-linear function, rt is the reset gate and ⊙ denotes element-wise multiplication. When rt is close to zero, then the reset gate forgets the previously computed state. The reset gate rt is updated similarily to the update gate as follows:
-rt = б(Wzxt +Uzht-1 +bz)
-The bidirectional GRU is essentially a combination of two GRUs that one operates in the forward direction and the other operates in the backward direction. In this way, it leads to two hidden states ht and ht at time t, which can be viewed as a summary of the left context and right context respectively. Their concatenation ht = [ht;ht] provides a summary of global context around the input at time t.
-3.2 Context-based Conceptualization 
-Conceptualization map a word into an explicit semantic space composed by concepts in knowledge base. In this section, we firstly describe how to 
-3.2.1 Knowledge Base Concepts Representation
+#encoding:utf-8
 
-3.2.2 Concept Attention
-Suppose a document is expressed as D = {x1,x2,…,xn}, where n is the number of words it contains. In the previous step, for a word xi, we can get its concept vector Ci ={<ci1: vi1>,…,<cij: vij>}. Not all concepts care related to a word given the context. Hence, we employ an attention-based neural network to dynamically extract such concepts that are important or relevant to the given context and aggregate the representations of those concepts to form a context-based concept vector. Specifically,
-uij = tanh(Wvij+b)
-aij = exp ()
-mi = 
-where . In this way, we get a context-based concept vector to represent the external knowledge related to a word given the context. For a word at time t, We combine its global context h with its concept representation called word-concept embedding together and feed them into a convolutional neural network to perform short text classification.
-3.3 Convolutional Neural Networks	
-A matric H = {h1,h2,h3,…,hl} is obtained from ….
+import torch.nn as nn
+import torch
+import torch.optim as optim
+from torch.autograd import Variable
+import torch.nn.functional as F
+import numpy as np
+'''
+模型部分:标准CNN模型 
+'''
 
+class CNN(nn.Module):
+    def __init__(self,**kwargs):
+        super(CNN,self).__init__()
+        self.name='CNN'
+        self.dimension = kwargs['dimension']
+        self.batch_size = kwargs['batch_size']
+        self.type = kwargs['type']
+        self.classes=kwargs['classes']
+        self.number_of_filters = kwargs['number_of_filters']
+        self.filter_size = kwargs['filter_size']
+        self.epoch=kwargs['epoch']
+        self.wv = kwargs['wv_maritx']
+        self.dropout_rate = kwargs['dropout']
+        self.level = kwargs['level']
+        self.VOCABULARY_SIZE = kwargs['VOCABULARY_'+self.level+'_SIZE']
+        self.max_sent_length = kwargs['max_sent_'+self.level+'_length']
+        self.length_feature = kwargs['length_feature']
+        self.max_sent_length+=self.length_feature
+        self.embedding=nn.Embedding(self.VOCABULARY_SIZE+2,self.dimension,padding_idx=self.VOCABULARY_SIZE+1)
+        #self.embedding.weight=nn.Parameter(torch.LongTensor(self.wv))
+        self.relu=nn.ReLU()
+        self.channel=1
+        if(self.type=='static'):
+            self.embedding.weight.requires_grad = False
+        if(self.type=='multichannel'):
+            self.channel=2
+        if(self.type=='non-static' and self.level=='word'):
+            self.embedding.weight.data.copy_(torch.from_numpy(self.wv))
+        self.dropout=nn.Dropout(p=self.dropout_rate)
+        for i in range(len(self.number_of_filters)):
+            con=nn.Conv1d(self.channel,self.number_of_filters[i],self.dimension*self.filter_size[i],stride=self.dimension)
+            setattr(self,'con_{}'.format(i),con)
+        self.fc1=nn.Linear(sum(self.number_of_filters),100)
+        self.fc2=nn.Linear(100,len(self.classes))
+        self.tanh = nn.Tanh()
+        self.softmax=nn.Softmax(dim=1)
 
+    def con(self,i):
+        return getattr(self,'con_{}'.format(i))
+
+    def forward(self,input):
+        print(input.shape())
+        x = self.embedding(input).view(-1, 1, self.dimension * self.max_sent_length)
+        conv=[]
+        for i in range(len(self.number_of_filters)):
+            temp=self.con(i)(x)
+            temp=self.relu(temp)
+            temp=nn.MaxPool1d(self.max_sent_length-self.filter_size[i]+1)(temp).view(-1,self.number_of_filters[i])
+            conv.append(temp)
+        x = torch.cat(conv,1)
+        x = self.tanh(x)
+        x = self.dropout(x)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.softmax(x)
+        return x
+
+'''
+模型部分:标准RNN模型
+'''
+
+class RNN(nn.Module):
+    def __init__(self, **kwargs):
+        super(RNN, self).__init__()
+        self.name = 'RNN'
+        self.BATCH_SIZE = kwargs['batch_size']
+        self.level = kwargs['level']
+        self.length_feature = kwargs['length_feature']
+        self.MAX_SENT_LEN = kwargs['max_sent_' + self.level + '_length']
+        if(self.length_feature == 1):
+             self.MAX_SENT_LEN += 1
+        self.VOCAB_SIZE = kwargs['VOCABULARY_'+self.level+'_SIZE']
+        self.classes = kwargs['classes']
+        self.CLASS_SIZE = len(self.classes)
+        self.WORD_DIM = kwargs['dimension']
+        self.DROPOUT_PROB = kwargs['dropout']
+        self.WV_MATRIX = kwargs['wv_maritx']
+        self.FILTERS = kwargs['filter_size']
+        self.FILTER_NUM = kwargs['number_of_filters']
+        self.GPU = kwargs['gpu']
+        self.type = kwargs['type']
+        self.num_layers = kwargs['num_layers']
+        self.idx_to_word = kwargs['idx_to_word']
+        self.hidden_size = kwargs['hidden_size']
+        self.concept_vectors = kwargs['concept_vectors']
+        self.IN_CHANNEL = 1
+        self.embedding = nn.Embedding(self.VOCAB_SIZE + 2, self.WORD_DIM, padding_idx=self.VOCAB_SIZE + 1)
+        if(self.type !='rand'):
+            self.embedding.weight.data.copy_(torch.from_numpy(self.WV_MATRIX))
+        self.attend = nn.Linear(self.WORD_DIM, 1)
+
+        for i in range(len(self.FILTERS)):
+            conv = nn.Conv1d(self.IN_CHANNEL, self.FILTER_NUM[i], self.WORD_DIM * self.FILTERS[i] * 2, stride=self.WORD_DIM * 2)
+            setattr(self, 'conv_{}'.format(i), conv)
+
+        self.gru = nn.RNN(input_size=self.WORD_DIM, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=False, batch_first=True)
+        self.fc = nn.Linear(sum(self.FILTER_NUM), self.CLASS_SIZE)
+        #这个是为了concept能够进行attention做的，其实就相当于一个双曲线，先把所有的都转换成 1*concept_dim
+        self.softmax_word = nn.Softmax(dim=0)
+        self.fc2_attention = nn.Linear(self.hidden_size*2,1)
+        self.fc_output = nn.Linear(self.hidden_size,len(self.classes))
+        self.soft_output = nn.Softmax(dim=1)
+        self.tanh = nn.Tanh()
+
+    def get_conv(self, i):
+        return getattr(self, 'conv_{}'.format(i))
+
+    def forward(self, inp):
+        x = self.embedding(inp)
+        output, hidden = self.gru(x)
+        # output_shape:batch*seq_len*2*hidden_size
+        output = output.permute(1,0,2)
+        # output_shape:seq_len*batch_size*2*hidden_size
+        output = output[-1]
+        output = self.fc_output(output)
+        output = self.soft_output(output)
+        return output
