@@ -51,7 +51,6 @@ class CNN(nn.Module):
         return getattr(self,'con_{}'.format(i))
 
     def forward(self,input):
-        print(input.shape())
         x = self.embedding(input).view(-1, 1, self.dimension * self.max_sent_length)
         conv=[]
         for i in range(len(self.number_of_filters)):
