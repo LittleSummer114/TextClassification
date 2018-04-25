@@ -1,7 +1,15 @@
 #encoding:utf-8
 import os
 '''
-统一进行调参 有新的参数往这里添加
+
+1.  测试GRU-attention 和普通的CNN差别,GRU epoch=50 收敛了 CNN,epoch=10也收敛了,明显CNN的效果会比RNN好
+1. 确定 learning rate 明显地看到 学习率低收敛的时间就会变长,所以低学习率应该设置epoch更大-->1
+2. 分别运行word char --> 结合
+6. 修改max_features  --> 这个可以专门加一组看max_features对结果的影响
+7. 尝试sent_length  --> 等待
+8. 试一下GRU只用最后一个输出和用所有的加Attention的结果
+
+1. 重新跑GRU,收敛的比较慢,epoch要设置大一点
 '''
 hidden_sizes = [
     256,
@@ -12,18 +20,33 @@ number_layers = [
     1
 ]
 models=[
-    'CNN',
+  #  'CNN',
+   # 'BiGRU_CONCEPT_Attention',
+   # 'BiGRU_Attention'
+   # 'GRU_Attention',
+   # 'BiGRU_CONCEPT_CNN_NO_TRANS',
+    #'BiGRU_CONCEPT_CNN_NO_TRANS',
+    'BiGRU_CONCEPT_CNN_NO_TRANS_NEW',
+    'BiGRU_CONCEPT_CNN_NO_TRANS_3',
+    'BiGRU_CONCEPT_CNN_NO_TRANS'
+
 ]
 modes=[
     'train'
 ]
 datasets=[
-'AG'
+    'TREC'
+   # 'Subj',
+   # 'MRS',
+   # 'TREC'
+ #   'AG'
 ]
 max_features=[
+    10000,
    5000,
     8000,
-   # 15000,
+
+
    # 5000,
    # 1000,
 ]
@@ -39,7 +62,7 @@ wvs=[
     'word2vec',
 ]
 epochs=[
-50
+20,
 ]
 batch_sizes=[
     # 50000,
@@ -48,11 +71,11 @@ batch_sizes=[
  20,
              ]
 learning_rates=[
-   # 0.01,
-   # 0.03,
-   # 0.001,
-   # 0.003,
-    #0.1,
+    0.01,
+    0.03,
+    0.001,
+    0.003,
+    0.1,
     0.3,
     1,
 ]
@@ -61,9 +84,9 @@ dimensions=[
     300,
 ]
 max_sent_word_lengths=[
-    20,
+   # 20,
     40,
-    30
+   # 30
 ]
 max_sent_char_lengths=[
     150,
@@ -76,7 +99,7 @@ filter_sizes=[
 num_of_filters=[
     ['100','100','100','100']
 ]
-gpu={'AG':0,'Subj':1,'MRS':2,'TREC':3}
+gpu={'AG':0,'Subj':2,'MRS':2,'TREC':3}
 optimizers=[
     'Adadelta',
     #'SGD'
