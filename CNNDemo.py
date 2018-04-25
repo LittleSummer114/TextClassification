@@ -1,3 +1,4 @@
+TM
 #encoding:utf-8
 # to process data x:['I','Like','eating','apples'] --> y[0]
 #输入是一个数据集的名字
@@ -98,7 +99,9 @@ def getStopWords():
         stopwords[line]=1
     return stopwords
 
-def SplitSentence(words,stopwords,vocab):
+def SplitSentence(sent,stopwords,vocab):
+    sent=clear_string(sent)
+    words=jieba.cut(sent)
     sentence=[]
     for word in words:
         if(vocab ==[]):
@@ -109,44 +112,148 @@ def SplitSentence(words,stopwords,vocab):
     #string = " ".join(sentence)
     return sentence
 
-def read_EMNLP(data):
+def read_SST_1(data):
     stopwords = getStopWords()
-    filename = 'data/EMNLP/hanyu_output_cws_id.txt'
     vocab = []
-    if (data != {}):
+    if(data!={}):
         vocab = data['vocab_word']
-    filedata = open(filename, encoding='utf-8')
-    dataset = {}
-    for line in filedata:
-        line = line.strip()
-        line = line.split('|')
-        dataset [line[0]] = line[1]
-    train_x, train_y, train_Discuss = [], [] , []
-    test_x, test_y, test_Discuss = [],[],[]
-    for i in range(10):
-        filename = 'data/EMNLP/folds/' + 'fold' + str(i) + '.txt'
-        labeldata = open(filename, encoding='utf-8')
-        for line in labeldata:
+    def read(name):
+        path = 'data/AG/' + name + '.txt'
+        data = open(path,'r',encoding='utf-8').readlines()
+        x = []
+        y = []
+        Discuss = []
+        for line in data:
             line = line.strip()
-            line = line.split('|')
-            if(i == data['testfold']):
-                test_y.append(line[0])
-                sentence = SplitSentence(dataset[line[1]].split(), stopwords, vocab)
-                test_Discuss.append(' '.join(sentence))
-                test_x.append(sentence)
-            else:
-                train_y.append(line[0])
-                sentence = SplitSentence(dataset[line[1]].split(), stopwords, vocab)
-                train_Discuss.append(' '.join(sentence))
-                train_x.append(sentence)
+            line = line.split('\t')
+            y.append(line[1])
+            x.append(SplitSentence(line[0],stopwords,vocab))
+            Discuss.append(line[0])
+        return x,y,Discuss
+    train_x, train_y, train_Discuss = read('train')
+    dev_x, dev_y, dev_Discuss = read('dev')
+    test_x, test_y, test_Discuss = read('test')
     data['train_x'] = train_x
-    data['dev_x'] = []
+    data['dev_x'] = dev_x
     data['train_Discuss'] = train_Discuss
-    data['dev_Discuss'] = []
+    data['dev_Discuss'] = dev_Discuss
     data['train_y'] = train_y
-    data['dev_y'] = []
+    data['dev_y'] = dev_y
     data['test_x'] = test_x
     data['test_y'] = test_y
+    data['test_Discuss'] = test_Discuss
+    return data
+
+def read_AG(data):
+    stopwords = getStopWords()
+    vocab = []
+    if(data!={}):
+        vocab = data['vocab_word']
+    def read(name):
+        path = 'data/AG/' + name + '.txt'
+        data = open(path,'r',encoding='utf-8').readlines()
+        x = []
+        y = []
+        Discuss = []
+        for line in data:
+            line = line.strip()
+            line = line.split('\t')
+            y.append(line[0])
+            x.append(SplitSentence(line[1],stopwords,vocab))
+            Discuss.append(line[1])
+        return x,y,Discuss
+    train_x, train_y, train_Discuss = read('train')
+    train_x, train_y, train_Discuss = shuffle(train_x, train_y, train_Discuss)
+    test_x, test_y, test_Discuss = read('test')
+    train_x_index = len(train_x)
+    dev_x_index = train_x_index // 10
+    data['train_x'] = train_x[dev_x_index:train_x_index]
+    data['dev_x'] = train_x[:dev_x_index]
+    data['train_Discuss'] = train_Discuss[dev_x_index:train_x_index]
+    data['dev_Discuss'] = train_Discuss[:dev_x_index]
+    data['train_y'] = train_y[dev_x_index:train_x_index]
+    data['dev_y'] = train_y[:dev_x_index]
+    data['test_x'] = test_x
+    data['test_y'] = test_y
+    data['test_Discuss'] = test_Discuss
+    return data
+
+def read_HUAWEI(data):
+    '''
+    输入华为制造的数据集 格式是 entity1,entity2,relation,origin_data
+    :return:
+    '''
+    stopwords = getStopWords()
+    vocab = []
+    if(data != {}):
+        vocab = data['vocab_word']
+    def read(name):
+        x = []
+        y = []
+        Discuss = []
+        path = 'data/HUAWEI/'+name+'.csv'
+        data = pd.read_csv(path)
+        for i in range(len(data['entity1'])):
+            # sentence_x = []
+            # sentence_x.append(data['entity1'][i])
+            # sentence_x.append(data['entity2'][i])
+            sentence = SplitSentence(data['origin_data'][i],stopwords,vocab)
+            x.append(sentence)
+            #x.append(sentence_x)
+            Discuss.append(' '.join(sentence))
+            y.append(data['relation'][i])
+        return x,y,Discuss
+
+    train_x, train_y, train_Discuss = read('train')
+    train_x, train_y, train_Discuss = shuffle(train_x, train_y, train_Discuss)
+    test_x, test_y, test_Discuss = read('test')
+    train_x_index = len(train_x)
+    dev_x_index = train_x_index // 10
+    data['train_x'] = train_x[dev_x_index:train_x_index]
+    data['dev_x'] = train_x[:dev_x_index]
+    data['train_Discuss'] = train_Discuss[dev_x_index:train_x_index]
+    data['dev_Discuss'] = train_Discuss[:dev_x_index]
+    data['train_y'] = train_y[dev_x_index:train_x_index]
+    data['dev_y'] = train_y[:dev_x_index]
+    data['test_x'] = test_x
+    data['test_y'] = test_y
+    data['test_Discuss'] = test_Discuss
+
+    return data
+
+def read_TREC(data):
+    vocab = []
+    if(data!={}):
+        vocab = data['vocab_word']
+    stopwords = getStopWords()
+    def read(name):
+        filename='data/TREC/'+name+'.txt'
+        data=open(filename,encoding='utf-8')
+        x = []
+        y = []
+        Discuss = []
+        for line in data:
+            line = line.strip()
+            line = line.split(' ')
+            sentence = SplitSentence(' '.join(line[1:]),stopwords,vocab)
+            y.append(line[0].split(':')[0])
+            #print(sentence)
+            x.append(sentence)
+            Discuss.append(' '.join(sentence))
+        return x,y,Discuss
+    train_x,train_y,train_Discuss=read('train')
+    train_x,train_y,train_Discuss = shuffle(train_x,train_y,train_Discuss)
+    test_x,test_y,test_Discuss=read('test')
+    train_x_index=len(train_x)
+    dev_x_index=train_x_index//10
+    data['train_x'] = train_x[dev_x_index:train_x_index]
+    data['dev_x']=train_x[:dev_x_index]
+    data['train_Discuss'] = train_Discuss[dev_x_index:train_x_index]
+    data['dev_Discuss'] = train_Discuss[:dev_x_index]
+    data['train_y'] = train_y[dev_x_index:train_x_index]
+    data['dev_y'] = train_y[:dev_x_index]
+    data['test_x']=test_x
+    data['test_y']=test_y
     data['test_Discuss'] = test_Discuss
     return data
 
@@ -167,7 +274,210 @@ def clean_str(string):
 
     return string.strip().lower()
 
-#统计词频
+def read_Subj(data):
+    vocab = []
+    if (data != {}):
+        vocab = data['vocab_word']
+    stopwords = getStopWords()
+    x, y ,Discuss = [], [], []
+
+    with open('data/Subj/subjective.txt', 'r', encoding='utf-8') as f:
+        for line in f:
+            if line[-1] == '\n':
+                line = line[:-1]
+            #相当与原来这里是做NER得到的phrase,那么就需要找到word2vec里面的phrase
+            sentence = SplitSentence(line, stopwords, vocab)
+            x.append(sentence)
+            y.append(1)
+            Discuss.append(' '.join(sentence))
+
+    with open('data/Subj/objective.txt', 'r', encoding='utf-8') as f:
+        for line in f:
+            if line[-1] == '\n':
+                line = line[:-1]
+            sentence = SplitSentence(line, stopwords, vocab)
+            x.append(sentence)
+            y.append(0)
+            Discuss.append(' '.join(sentence))
+
+    x, y = shuffle(x, y)
+    dev_idx = len(x) // 10 * 8
+    test_idx = len(x) // 10 * 9
+
+    data['train_x'], data['train_y'] , data ['train_Discuss'] = x[:test_idx], y[:test_idx], Discuss[:test_idx]
+    data['dev_x'], data['dev_y'], data ['dev_Discuss']  = x[dev_idx:test_idx], y[dev_idx:test_idx],Discuss[dev_idx:test_idx]
+    data['test_x'], data['test_y'], data ['test_Discuss']  = x[test_idx:], y[test_idx:],Discuss[test_idx:]
+
+    return data
+
+def read_MRS(data):
+    vocab = []
+    if(data!={}):
+        vocab = data['vocab_word']
+    stopwords = getStopWords()
+    def read(name):
+        filename='data/MRS/'+name+'.txt'
+        data=open(filename,encoding='utf-8').readlines()
+        x=[]
+        y=[]
+        Discuss = []
+        for line in data:
+            line=line.strip().split('\t')
+            sentence = SplitSentence(' '.join(line[1].split()), stopwords, vocab)
+            y.append(line[0])
+            x.append(sentence)
+            Discuss.append(line[1])
+        return x,y,Discuss
+    train_x, train_y, train_Discuss = read('train')
+    train_x, train_y, train_Discuss =shuffle(train_x,train_y,train_Discuss)
+    test_x, test_y, test_Discuss =read('test')
+    train_x_index=len(train_x)
+    dev_x_index=train_x_index//10
+    data['train_x'] = train_x[dev_x_index:train_x_index]
+    data['dev_x']=train_x[:dev_x_index]
+    data['train_Discuss'] = train_Discuss[dev_x_index:train_x_index]
+    data['dev_Discuss'] = train_Discuss[:dev_x_index]
+    data['train_y'] = train_y[dev_x_index:train_x_index]
+    data['dev_y'] = train_y[:dev_x_index]
+    data['test_x']=test_x
+    data['test_y']=test_y
+    data['test_Discuss'] = test_Discuss
+    return data
+
+def read_MR(data):
+    vocab = []
+    if(data!={}):
+        vocab = data['vocab_word']
+    stopwords = getStopWords()
+    def read(name):
+        filename='data/MR/'+name+'.txt'
+        data=open(filename,encoding='utf-8').readlines()
+        x=[]
+        y=[]
+        Discuss = []
+        for line in data:
+            line=line.strip().split('\t')
+            sentence = SplitSentence(' '.join(line[1].split()), stopwords, vocab)
+            y.append(line[0])
+            x.append(sentence)
+            Discuss.append(line[1])
+        return x,y,Discuss
+    train_x, train_y, train_Discuss = read('train')
+    train_x, train_y, train_Discuss =shuffle(train_x,train_y,train_Discuss)
+    test_x, test_y, test_Discuss =read('test')
+    train_x_index=len(train_x)
+    dev_x_index=train_x_index//10
+    data['train_x'] = train_x[dev_x_index:train_x_index]
+    data['dev_x']=train_x[:dev_x_index]
+    data['train_Discuss'] = train_Discuss[dev_x_index:train_x_index]
+    data['dev_Discuss'] = train_Discuss[:dev_x_index]
+    data['train_y'] = train_y[dev_x_index:train_x_index]
+    data['dev_y'] = train_y[:dev_x_index]
+    data['test_x']=test_x
+    data['test_y']=test_y
+    data['test_Discuss'] = test_Discuss
+    return data
+
+def list2dic(temp_list):
+    temp_dic={}
+    for key in temp_list:
+        temp_dic[key]=1
+    return temp_dic
+
+def read_Travel(data):
+    stopwords=getStopWords()
+    if(data == {}):
+        vocab = []
+    else:
+        vocab = list2dic(data['vocab_word'])
+    def read(name):
+        x=[]
+        y=[]
+        Discuss=[]
+        filename = 'data/Travel/' + name + '.csv'
+        Travel_data = read_csv(filename, encoding='utf-8')
+        if(name=='train'):
+            Travel_data = Travel_data.drop_duplicates(['Discuss'])
+        result = DataFrame()
+        for idx,content in Travel_data.iterrows():
+            string=SplitSentence(content['Discuss'],stopwords,vocab)
+            Discuss.append(string)
+            x.append(string.split())
+            if (name == 'test'):
+                y.append('NULL')
+            else:
+                y.append(content['Score'])
+        result['Id'] = Travel_data['Id']
+        result['Discuss'] = Discuss
+        result['Score'] = y
+        return x, y,result['Id'],result['Discuss']
+    time1 = time.time()
+    train_x,train_y ,train_id,train_Discuss=read('train')
+    test_x,test_y,test_id,test_Discuss=read('test')
+    train_x_index = len(train_x)
+    dev_x_index = train_x_index // 10
+    train_x,train_y = train_x,train_y
+    train_x,train_y = shuffle(train_x,train_y)
+    data['train_x'] = train_x[dev_x_index:train_x_index]
+    data['dev_x'] = train_x[:dev_x_index]
+    data['train_y'] = train_y[dev_x_index:train_x_index]
+    data['dev_y'] = train_y[:dev_x_index]
+    data['test_x'] = test_x
+    data['test_y'] = test_y
+    data['train_Id'], data['train_Discuss'] = train_id[dev_x_index:train_x_index], train_Discuss[dev_x_index:train_x_index]
+    data['dev_Id'], data['dev_Discuss'] = train_id[:dev_x_index], train_Discuss[:dev_x_index]
+    data['test_Id'], data['test_Discuss'] = test_id, test_Discuss
+    time2 = time.time()
+    print('Load Dataset Time:', str(time2 - time1))
+    return data
+
+def dataAugument():
+    '''
+    数据增强,将类别比较少的数据两两组合
+    :return:
+    '''
+def read_TravelTest():
+    data={}
+    stopwords=getStopWords()
+    def read(name):
+        x=[]
+        y=[]
+        Discuss=[]
+        filename = 'data/TravelTest/' + name + '.csv'
+        resultname = 'data/TravelTest/' + name + '_split.csv'
+        Travel_data = read_csv(filename,encoding='utf-8')
+        result = DataFrame()
+        for i in range(len(Travel_data['Id'])):
+            string=SplitSentence(Travel_data['Discuss'][i],stopwords)
+            Discuss.append(string)
+            x.append(string.split())
+            if(name=='test'):
+                y.append('NULL')
+            else:
+                y.append(Travel_data['Score'][i])
+        result['Id']=Travel_data['Id']
+        result['Discuss']=Travel_data['Discuss']
+        result['Score']=y
+        result.to_csv(resultname,encoding='utf-8',index=False)
+        return x, y,Travel_data['Id'],Travel_data['Discuss']
+    train_x,train_y,train_id,train_Discuss=read('train')
+    test_x,test_y,test_id,test_Discuss=read('test')
+    train_x_index = len(train_x)
+    dev_x_index = train_x_index // 10
+    train_x, train_y = train_x, train_y
+    train_x, train_y = shuffle(train_x, train_y)
+    data['train_x'] = train_x[dev_x_index:train_x_index]
+    data['dev_x'] = train_x[:dev_x_index]
+    data['train_y'] = train_y[dev_x_index:train_x_index]
+    data['dev_y'] = train_y[:dev_x_index]
+    data['test_x'] = test_x
+    data['test_y'] = test_y
+    data['train_Id'], data['train_Discuss'] = train_id[dev_x_index:train_x_index], train_Discuss[
+                                                                                   dev_x_index:train_x_index]
+    data['dev_Id'], data['dev_Discuss'] = train_id[:dev_x_index], train_Discuss[:dev_x_index]
+    data['test_Id'], data['test_Discuss'] = test_id, test_Discuss
+    return data
+
 def getDFrequency(data):
     print('Getting')
     y = []
@@ -184,13 +494,11 @@ def tocsv(data,vocab_word_file,name):
     temp_vocab_word.to_csv(vocab_word_file, encoding='utf-8', index=False)
     return temp
 
-#获取词典数据
 def getVocab(params):
-    vocab_word_file = 'data/' + params['dataset'] + '/testfold' + str(params['testfold']) + '_vocab_word.csv'
-    vocab_char_file = 'data/' + params['dataset'] + '/testfold' + str(params['testfold']) + '_vocab_char.csv'
+    vocab_word_file = 'data/' + params['dataset'] + '/vocab_word.csv'
+    vocab_char_file = 'data/' + params['dataset'] + '/vocab_char.csv'
     if (os.path.exists(vocab_word_file)==False and os.path.exists(vocab_char_file)==False):
         data = {}
-        data['testfold'] = params['testfold']
         data = eval('read_{}'.format(params['dataset']))(data)
         if(params['cv']==False):
             data['x'] = data['train_x'] + data['dev_x'] + data['test_x']
@@ -215,7 +523,6 @@ def getVocab(params):
     #print('char',vocab_char)
     return vocab_word, vocab_char
 
-#统计句子长度数据,主要是RNN做packed用
 def getMaxLength(sentences):
     len_word=[]
     len_char=[]
@@ -227,9 +534,8 @@ def getMaxLength(sentences):
         len_char.append(temp_len_char)
     return len_word,len_char
 
-#以图表的形式输出数据分析结果
 def getHit(train,test,params,name):
-    sent_word_file = 'data/' + params['dataset'] + '/'+ '/testfold' + str(params['testfold'])+ '_sent_'+name+'_dis.eps'
+    sent_word_file = 'data/' + params['dataset'] + '/' + 'sent_'+name+'_dis.eps'
     plt.clf()
     plt.figure(1)
     plt.title('sentence_length_'+name)
@@ -241,7 +547,6 @@ def getHit(train,test,params,name):
     plt.figure(1).savefig(sent_word_file)
     plt.close()
 
-#输出分析数据,目前仅有句子长度分布
 def DataAnalysis(data,params):
     train_word, train_char = getMaxLength(data['train_x'] + data['dev_x'])
     test_word, test_char = getMaxLength(data['test_x'])
@@ -253,7 +558,6 @@ def DataAnalysis(data,params):
     getMax('word',train_word+test_word)
     getMax('char',train_char+test_char)
 
-#以{idx:word}输出数据
 def element2idx(data,name):
     data['idx_to_'+name] = {}
     data[name+'_to_idx'] = {}
@@ -263,10 +567,8 @@ def element2idx(data,name):
         data[name+'_to_idx'][word] = key
     return data
 
-#加载处理好的数据集
 def getDataset(params):
     data={}
-    data['testfold'] = params['testfold']
     vocab_word, vocab_char = getVocab(params)
     data['vocab_word'] = vocab_word[:params['max_features']]
     data['vocab_char'] = vocab_char
@@ -289,26 +591,36 @@ def getDataset(params):
     print('label distribution')
     print('label, dataset, train, dev')
     for label in data['classes']:
-        print(label,data['y'].count(label),data['train_y'].count(label),data['test_y'].count(label))
+        print(label,data['y'].count(label),data['train_y'].count(label),data['dev_y'].count(label))
     element2idx(data, 'word')
     element2idx(data, 'char')
     params = load_wc(data, params)
+    params = load_concept(data, params)
     data=Sen2Index(data,params)
     return data,params
 
-#此处加载预训练好的词向量模型,修改相应路径即可 word2vec = json.load(open('word_vectors.json', 'r'))
+def load_concept(data,params):
+    concepts = json.load(open('word_concept_vector.json','r'))
+    concept_matrix = {}
+    for word in data['vocab_word']:
+        if(concepts.get(word)is not None):
+            concept_matrix[word] = concepts[word]
+    params['concept_vectors'] = concept_matrix
+    return params
+
 def load_wc(data,params):
     if(params['type']=='rand'):
         params['wv_maritx'] = []
         print('rand')
         return params
-    path = 'models/' + params['dataset'] + '_'+params['level']+'_'+'testfold'+str(params['testfold'])+'_'+str(params['max_features'])+'.pkl'
+    path = 'models/' + params['dataset'] + '_'+params['level']+'_'+params['wv']+'_'+str(params['max_features'])+'.pkl'
     if(os.path.exists(path)):
         wc_matrix=pickle.load(open(path,'rb'))
     else:
         wc_matrix = []
         if(params['wv']=='word2vec'):
-            word2vec = KeyedVectors.load_word2vec_format('data/EMNLP/zh_wiki_w2v_skigram_300_win5_mincount500_negtive5_iter3.txt',binary=False)
+            #word2vec = KeyedVectors.load_word2vec_format('models/GoogleNews-vectors-negative300.bin',binary=True)
+            word2vec = json.load(open('word_vectors.json', 'r'))
             print('word2vec model saving successfully!')
         for word in data['vocab_word']:
             if (word in word2vec):
@@ -325,13 +637,11 @@ def load_wc(data,params):
     params['wv_maritx']=wc_matrix
     return params
 
-#此处保存训练好的模型
 def save_models(model,params):
     path='models/{}_{}_{}_{}.pkl'.format(params['dataset'],params['model'],params['level'],params['time'])
     pickle.dump(model,open(path,'wb'))
     print('successful saved models !')
 
-#输出实验结果,评价指标为RMSE
 def getRMSE(prediction,true):
     rmse=0
     assert (len(prediction)==len(true))
@@ -341,7 +651,6 @@ def getRMSE(prediction,true):
     rmse=rmse/(1+rmse)
     return rmse
 
-#输出实验结果,评价指标为ACC
 def getACC(prediction,true):
     acc=0
     #print('prediction',prediction)
@@ -352,7 +661,36 @@ def getACC(prediction,true):
     acc=acc/len(prediction)
     return acc
 
-#加载预训练好的模型
+def getEntityRelation():
+    '''
+    读取excel中的数据,得到每个缺陷还有部件的层次关系
+    :return:
+    '''
+    data = pd.read_excel('relation_hierarchy.xlsx')
+    defect_entities = {}
+    defect = ''
+    for i in range(len(data['缺陷名称'])):
+        if(type(data['缺陷名称'][i]) == str):
+            defect = data['缺陷名称'][i]
+            defect_entities[defect] = {}
+        if(type(data['第一级'][i]) == str):
+            if(defect_entities[defect].get(data['第一级'][i]) is None):
+                defect_entities[defect][data['第一级'][i]] = ""
+        if(type(data['第二级'][i]) == str):
+            temp = defect_entities[defect][data['第一级'][i]]
+            if(str(data['第二级'][i]) not in temp):
+                temp +=' ' + str(data['第二级'][i])
+                defect_entities[defect][data['第一级'][i]] = temp
+        if(type(data['第三级'][i]) == str):
+            if (defect_entities[defect].get(data['第二级'][i]) is None):
+                defect_entities[defect][data['第二级'][i]] = ""
+            temp = defect_entities[defect][data['第二级'][i]]
+            if(str(data['第三级'][i] not in temp)):
+                temp += ' ' + str(data['第三级'][i])
+                defect_entities[defect][data['第二级'][i]] = temp
+    print(defect_entities)
+    json.dump(defect_entities,open('relation_hierarchy.json','w',encoding='utf-8'))
+
 def load_models(params):
     path = 'models/{}_{}_{}_{}.pkl'.format(params['dataset'], params['model'], params['level'], params['time'])
     print('model path',path)
