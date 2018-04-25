@@ -1,3 +1,4 @@
+TM
 #encoding:utf-8
 import argparse
 import preprocess
@@ -36,8 +37,9 @@ def train(data,params):
     dev_loss_epochs = []
     for e in range(params['epoch']):
         start=time.time()
-        count=0
-        train_loss=0
+        count = 0
+        train_loss = 0
+        train_metric = 0
         for i in range(0,len(data['train_x_word']),params['batch_size']):
             count+=1
             batch_range = min(params['batch_size'],len(data['train_x_word'])-i)
@@ -63,21 +65,22 @@ def train(data,params):
                     pred=model(batch_x_char)
             loss=criterian(pred,batch_y)
             temp_y,temp_pred=batch_y.cpu().data.numpy(),pred.cpu().data.numpy()
-            train_metric=getattr(preprocess,'get{}'.format(params['metric']))(np.argmax(temp_pred,axis=1),temp_y)
+            train_metric+=getattr(preprocess,'get{}'.format(params['metric']))(np.argmax(temp_pred,axis=1),temp_y)
             train_loss+=loss.data[0]
             if params['NORM_LIMIT'] > 0:
                 nn.utils.clip_grad_norm(parameters, max_norm=params['NORM_LIMIT'])
             loss.backward()
             optimizer.step()
         train_loss=train_loss/count
+        train_metric = train_metric / count
         if(len(data['test_x_word'])>params['threshold']):
-            dev_acc,dev_loss,dev_Rest=test_Batch(data,model,params,mode='test')
+            dev_acc,dev_loss,dev_Rest=test_Batch(data,model,params,mode='dev')
         else:
-            dev_acc,dev_loss,dev_Rest=test(data,model,params,mode='test')
+            dev_acc,dev_loss,dev_Rest=test(data,model,params,mode='dev')
         dev_acc_epochs.append(dev_acc)
         train_metric_epochs.append(train_metric)
         train_loss_epochs.append(train_loss)
-        #dev_loss_epochs.append(dev_loss)
+        dev_loss_epochs.append(dev_loss)
         epochs.append(e)
         end = time.time()
         cost_time = str(end - start)
@@ -88,17 +91,17 @@ def train(data,params):
     params['time'] = temp
     params['cost_time'] = cost_time
     temp_result = 'data/' + params['dataset'] + '/Results/' + params['model'] + '_' + params['mode'] + '_'+ temp +'_DevResults.csv'
-    # test_result = 'data/' + params['dataset'] + '/Results/' + params['model'] + '_' + params[
-    #     'mode'] + '_' + temp + '_TestResults.csv'
-    # if (len(data['test_x_word']) > params['threshold']):
-    #     test_acc, test_loss, test_Rest = test_Batch(data, model, params, mode='test')
-    # else:
-    #     test_acc, test_loss, test_Rest = test(data, model, params, mode='test')
+    test_result = 'data/' + params['dataset'] + '/Results/' + params['model'] + '_' + params[
+        'mode'] + '_' + temp + '_TestResults.csv'
+    if (len(data['test_x_word']) > params['threshold']):
+        test_acc, test_loss, test_Rest = test_Batch(data, model, params, mode='test')
+    else:
+        test_acc, test_loss, test_Rest = test(data, model, params, mode='test')
     dev_Rest.to_csv(temp_result,index=False,encoding='utf-8')
-    #test_Rest.to_csv(test_result, index=False, encoding='utf-8',header=False)
-    # if(params['purpose']=='Experiment'):
-    #     params['test_acc']=test_acc
-    #     print('test_acc',test_acc)
+    test_Rest.to_csv(test_result, index=False, encoding='utf-8',header=False)
+    if(params['purpose']=='Experiment'):
+        params['test_acc']=test_acc
+        print('test_acc',test_acc)
     picturepath='data/'+params['dataset']+'/pictures/'+params['model'] + '_' + params['mode']+'_'+temp+'_'+str(params['learning_rate'])+'_'+params['level']+'_'+str(params['max_features'])+'.jpg'
     plt.clf()
     plt.xlabel('Epoch')
@@ -112,7 +115,7 @@ def train(data,params):
     params.pop('wv_maritx')
     params.pop('concept_vectors')
     params.pop('idx_to_word')
-    #params['dev_acc']=dev_acc
+    params['dev_acc']=dev_acc
     columns=[]
     content=[]
     for param in params:
@@ -216,8 +219,8 @@ def test(data,model,params,mode='dev'):
 def main():
     parser=argparse.ArgumentParser(description='----------TextClassification----------')
     parser.add_argument('--model',default='CNN',help='models to perform text classification, alternative:CNN/GRU/BiGRU/BiGRU_CONCEPT_Attention/BiGRU_Attention/BiGRU_CNN/BiGRU_CONCEPT_CNN/BiGRU_CONCEPT_TWO_CNN')
-    parser.add_argument('--mode',default='test',help='mode, alternative:train/test/dev')
-    parser.add_argument('--dataset',default='EMNLP',help='datasets, alternative:TREC/MR/Travel')
+    parser.add_argument('--mode',default='train',help='mode, alternative:train/test/dev')
+    parser.add_argument('--dataset',default='HUAWEI',help='datasets, alternative:TREC/MR/Travel')
     parser.add_argument('--type', default='non-static', help='embedding type, alternative:non-static/static/non-static')
     parser.add_argument('--wv',default='word2vec',help='vector,trained/cv/word2vec/Glove')
     parser.add_argument('--purpose', default='Experiment', help='Experiment/Competition')
@@ -283,29 +286,45 @@ def main():
         'type': options.type,
         'threshold':options.threshold
     }
-    print('=' * 20 + 'INFORMATION' + '=' * 20)
-    for param in params:
-        if (param == 'wv_maritx' or param == 'concept_vectors'):
-            pass
-        else:
-            print(param.upper() + ': ', params[param])
     if(params['level']=='char'):
         params['type']='rand'
-    if(params['dataset']=='EMNLP'):
+    data,params = preprocess.getDataset(params)
+    print('='*20+'INFORMATION'+'='*20)
+    for param in params:
+        if(param == 'wv_maritx' or param == 'concept_vectors'):
+            pass
+        else:
+            print(param.upper()+': ',params[param])
+    params['classes']=data['classes']
+    params['VOCABULARY_word_SIZE'] = len(data['vocab_word'])
+    params['VOCABULARY_char_SIZE'] = len(data['vocab_char'])
+    if(params['cv']==True):
+        print('Using Cross Validation')
+        kf=StratifiedKFold(n_splits=params['number_of_cv'],shuffle=True,random_state=7)
         metric = 0
-        for i in range(10):
-            params['testfold'] = i
-            data, params = preprocess.getDataset(params)
-            params['classes'] = data['classes']
-            params['VOCABULARY_word_SIZE'] = len(data['vocab_word'])
-            params['VOCABULARY_char_SIZE'] = len(data['vocab_char'])
-            model, test_acc = train(data, params)
-            metric += test_acc
-        metric = metric / params['number_of_cv']
-        print('Dataset: ', params['dataset'], 'final result: ', metric)
-        model, dev_acc = train(data, params)
-        if (params['saved_models'] == True):
-            preprocess.save_models(model, params)
+        for train_index,test_index in list(kf.split(data['x_word'],data['y_word'])):
+            data['train_x_word'],data['dev_x_word']=np.array(data['x_word'])[train_index],np.array(data['x_word'])[test_index].tolist()
+            data['train_y_word'],data['dev_y_word']=np.array(data['y_word'])[train_index],np.array(data['y_word'])[test_index].tolist()
+            data['train_x_char'], data['dev_x_char'] = np.array(data['x_char'])[train_index], np.array(data['x_char'])[test_index].tolist()
+            data['train_y_char'], data['dev_y_char'] = np.array(data['y_char'])[train_index], np.array(data['y_char'])[test_index].tolist()
+            model,dev_acc=train(data,params)
+            metric+=dev_acc
+        metric=metric/params['number_of_cv']
+        print('Dataset: ',params['dataset'],'final result: ', metric)
+    else:
+        if (params['mode'] == 'train'):
+            model, dev_acc = train(data, params)
+            if (params['saved_models'] == True):
+                preprocess.save_models(model, params)
+        else:
+            model = preprocess.load_models(params,params['model_path'])
+            if (len(data['test_x_word']) < params['threshold']):
+                metric,loss,result = eval(params['mode'])(data, model, params, mode='test')
+                print(params['dataset']+params['model']+ 'metric:', metric)
+            else:
+                print('BATCH TEST...')
+                metric, loss, result = eval(params['mode'] + '_Batch')(data, model, params, mode='test')
+                print(params['dataset'] + params['model'] + 'metric:', metric)
 
 if __name__=='__main__':
     main()
